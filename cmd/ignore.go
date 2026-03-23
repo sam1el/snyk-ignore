@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/fatih/color"
@@ -43,9 +44,9 @@ Supports dry-run mode to preview what would be created.`,
 			ignoreType = "wont-fix"
 		}
 
-		if reason == "" {
-			reason = "Low severity - auto-ignored via API bulk operation"
-		}
+	if reason == "" {
+		reason = fmt.Sprintf("%s severity - auto-ignored via API bulk operation", formatSeverityForReason(severity))
+	}
 
 		client := api.NewClient(token, orgID)
 		if apiBase != "" {
@@ -170,6 +171,43 @@ Supports dry-run mode to preview what would be created.`,
 
 		return nil
 	},
+}
+
+// formatSeverityForReason formats severity levels for the ignore reason message
+func formatSeverityForReason(sev string) string {
+	if sev == "" {
+		return "Unknown"
+	}
+
+	capitalize := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
+
+	// Check if multiple severities (comma-separated)
+	if strings.Contains(sev, ",") {
+		parts := strings.Split(sev, ",")
+		for i, part := range parts {
+			parts[i] = capitalize(strings.TrimSpace(part))
+		}
+		return "Multiple (" + strings.Join(parts, ", ") + ")"
+	}
+
+	// Single severity
+	switch strings.TrimSpace(sev) {
+	case "low":
+		return "Low"
+	case "medium":
+		return "Medium"
+	case "high":
+		return "High"
+	case "critical":
+		return "Critical"
+	default:
+		return capitalize(strings.TrimSpace(sev))
+	}
 }
 
 func init() {
