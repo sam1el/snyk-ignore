@@ -28,7 +28,10 @@ install: build
 	cp bin/$(BINARY_NAME) $(shell go env GOPATH)/bin/
 
 test:
-	$(GO) test ./... -v -race -coverprofile=coverage.out
+	$(GO) test ./... -v -coverprofile=coverage.out
+
+test-race:
+	$(GO) test ./... -v -race
 
 lint:
 	golangci-lint run ./...
@@ -46,7 +49,8 @@ help:
 	@echo "  make build          - Build binary for current platform"
 	@echo "  make build-all      - Build for all platforms (Darwin, Linux, Windows)"
 	@echo "  make install        - Build and install to \$$GOPATH/bin"
-	@echo "  make test           - Run tests"
+	@echo "  make test           - Run tests with coverage"
+	@echo "  make test-race      - Run tests with race detector"
 	@echo "  make lint           - Run linter"
 	@echo "  make clean          - Remove build artifacts"
 	@echo "  make deps           - Download and tidy dependencies"
