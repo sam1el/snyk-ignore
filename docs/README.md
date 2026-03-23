@@ -297,6 +297,19 @@ If you know an issue is a false positive:
   --reason "False positive - not applicable to our code"
 ```
 
+### Custom Ignore Reason
+
+By default, the CLI auto-generates a reason based on severity (e.g., "Low severity - auto-ignored via API bulk operation"). You can override this with a custom message:
+
+```bash
+./bin/snyk-ignore ignore \
+  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
+  --severity low \
+  --reason "Legacy code - fixing not planned"
+```
+
+This custom reason will appear in the Snyk Web UI under Organization Settings > Ignores, helping your team understand why each vulnerability was ignored.
+
 ### Use Environment Variables Instead of Config File
 
 You can also set credentials as environment variables (useful for CI/CD):
