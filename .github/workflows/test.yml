@@ -28,8 +28,11 @@ jobs:
       - name: Tidy modules
         run: go mod tidy
 
+      - name: Clean build cache
+        run: go clean -testcache
+
       - name: Run tests with coverage
-        run: go test ./... -v -coverprofile=coverage.out
+        run: go test ./... -v -coverprofile=coverage.out -covermode=atomic
 
       - name: Run tests with race detector
         run: go test ./... -v -race
