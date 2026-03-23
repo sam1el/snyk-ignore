@@ -36,6 +36,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
+      - docs/README.md
       - LICENSE
 
 checksum:
@@ -44,5 +45,8 @@ checksum:
 
 release:
   github:
-    owner: snyk-ignore
-    name: cli
+    owner: sam1el
+    name: snyk-ignore
+  draft: false
+  prerelease: false
+

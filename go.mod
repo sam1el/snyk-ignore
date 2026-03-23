@@ -1,4 +1,4 @@
-module github.com/snyk-ignore/cli
+module github.com/sam1el/snyk-ignore
 
 go 1.22
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/snyk-ignore/cli/internal/config"
+	"github.com/sam1el/snyk-ignore/internal/config"
 )
 
 var (

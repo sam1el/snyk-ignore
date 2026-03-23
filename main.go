@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/snyk-ignore/cli/cmd"
+	"github.com/sam1el/snyk-ignore/cmd"
 )
 
 func main() {

@@ -8,7 +8,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 
-	"github.com/snyk-ignore/cli/internal/api"
+	"github.com/sam1el/snyk-ignore/internal/api"
 )
 
 var (
