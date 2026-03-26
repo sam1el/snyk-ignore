@@ -156,6 +156,7 @@ All commands support:
 - `--org-id <ID>` - Organization ID (or `SNYK_ORG_ID` env var)
 - `--api-base <URL>` - Custom API endpoint (or `SNYK_API_BASE` env var)
   - US (default): `https://api.snyk.io/rest`
+  - US2: `https://api.us.snyk.io/rest`
   - EU: `https://api.eu.snyk.io/rest`
   - AU: `https://api.au.snyk.io/rest`
 
