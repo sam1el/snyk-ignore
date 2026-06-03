@@ -17,7 +17,7 @@ var reverseCmd = &cobra.Command{
 
 This allows you to undo bulk ignore operations by removing the policies.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := validateFlags(); err != nil {
+		if err := validateFlags(true); err != nil {
 			return err
 		}
 
@@ -67,10 +67,10 @@ This allows you to undo bulk ignore operations by removing the policies.`,
 		if deleteFlag {
 			fmt.Println()
 			color.Red("Deleting %d policies...", len(relevantPolicies))
-			
+
 			deleted := 0
 			failed := 0
-			
+
 			for i, p := range relevantPolicies {
 				fmt.Printf("[%d/%d] Deleting %s...", i+1, len(relevantPolicies), p.Attrs.Name)
 				err := client.DeletePolicy(p.ID)
