@@ -6,8 +6,8 @@ func TestOrgMatchesFilter(t *testing.T) {
 	org := Organization{
 		ID: "abc",
 		Attrs: OrgAttributes{
-			Name: "CalSAWS Production",
-			Slug: "calsaws-prod",
+			Name: "Acme Production",
+			Slug: "acme-prod",
 		},
 	}
 
@@ -16,7 +16,7 @@ func TestOrgMatchesFilter(t *testing.T) {
 		want   bool
 	}{
 		{"", true},
-		{"cal", true},
+		{"acme", true},
 		{"prod", true},
 		{"demo", false},
 	}
@@ -46,7 +46,7 @@ func TestOrgIsExcluded(t *testing.T) {
 		{name: "name match", patterns: []string{"demo"}, want: true},
 		{name: "slug match", patterns: []string{"bitbucket"}, want: true},
 		{name: "uuid match", patterns: []string{"98107928"}, want: true},
-		{name: "no match", patterns: []string{"calsaws"}, want: false},
+		{name: "no match", patterns: []string{"acme"}, want: false},
 	}
 
 	for _, tt := range tests {
@@ -60,7 +60,7 @@ func TestOrgIsExcluded(t *testing.T) {
 
 func TestApplyOrgFilters(t *testing.T) {
 	orgs := []Organization{
-		{ID: "1", Attrs: OrgAttributes{Name: "CalSAWS Prod", Slug: "calsaws"}},
+		{ID: "1", Attrs: OrgAttributes{Name: "Acme Prod", Slug: "acme"}},
 		{ID: "2", Attrs: OrgAttributes{Name: "Bitbucket Demo", Slug: "demo"}},
 		{ID: "3", Attrs: OrgAttributes{Name: "broker_test", Slug: "broker-test"}},
 	}
