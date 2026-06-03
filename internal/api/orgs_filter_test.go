@@ -16,7 +16,7 @@ func TestOrgMatchesFilter(t *testing.T) {
 		want   bool
 	}{
 		{"", true},
-		{"calsaws", true},
+		{"calc", true},
 		{"prod", true},
 		{"demo", false},
 	}
