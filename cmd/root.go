@@ -10,11 +10,11 @@ import (
 )
 
 var (
-	token     string
-	orgID     string
-	apiBase   string
+	token      string
+	orgID      string
+	apiBase    string
 	saveConfig bool
-	debug     bool
+	debug      bool
 )
 
 var rootCmd = &cobra.Command{
@@ -38,11 +38,12 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug output")
 
 	rootCmd.AddCommand(findCmd)
+	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(ignoreCmd)
 	rootCmd.AddCommand(configCmd)
 }
 
-func validateFlags() error {
+func validateFlags(requireOrg bool) error {
 	// Load config file first (lowest priority)
 	cfg, err := config.Load()
 	if err == nil {
@@ -74,7 +75,7 @@ func validateFlags() error {
 	if token == "" {
 		return fmt.Errorf("--token flag or SNYK_TOKEN env var is required")
 	}
-	if orgID == "" {
+	if requireOrg && orgID == "" {
 		return fmt.Errorf("--org-id flag or SNYK_ORG_ID env var is required")
 	}
 	return nil

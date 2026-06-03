@@ -13,18 +13,31 @@ type IssuesResponse struct {
 }
 
 type Issue struct {
-	ID    string           `json:"id"`
-	Type  string           `json:"type"`
-	Attrs IssueAttributes  `json:"attributes"`
+	ID    string          `json:"id"`
+	Type  string          `json:"type"`
+	Attrs IssueAttributes `json:"attributes"`
 }
 
 type IssueAttributes struct {
-	Title               string `json:"title"`
-	EffectiveSeverity   string `json:"effective_severity_level"`
-	Key                 string `json:"key"`
-	KeyAsset            string `json:"key_asset"`
-	Status              string `json:"status"`
-	CreatedAt           string `json:"created_at"`
+	Title             string         `json:"title"`
+	EffectiveSeverity string         `json:"effective_severity_level"`
+	Key               string         `json:"key"`
+	KeyAsset          string         `json:"key_asset"`
+	Status            string         `json:"status"`
+	CreatedAt         string         `json:"created_at"`
+	Classes           []IssueClass   `json:"classes"`
+	Problems          []IssueProblem `json:"problems"`
+}
+
+type IssueClass struct {
+	ID     string `json:"id"`
+	Source string `json:"source"`
+	Type   string `json:"type"`
+}
+
+type IssueProblem struct {
+	ID     string `json:"id"`
+	Source string `json:"source"`
 }
 
 type ListIssuesOptions struct {
@@ -47,8 +60,8 @@ func (c *Client) ListIssues(projectID string, opts ListIssuesOptions) ([]Issue, 
 			c.orgID, projectID, opts.Limit,
 		)
 
-		if opts.Severity != "" {
-			path += fmt.Sprintf("&effective_severity_level=%s", opts.Severity)
+		if opts.Severity != "" && !strings.Contains(opts.Severity, ",") {
+			path += fmt.Sprintf("&effective_severity_level=%s", strings.TrimSpace(opts.Severity))
 		}
 		if opts.Status != "" {
 			path += fmt.Sprintf("&status=%s", opts.Status)
@@ -101,15 +114,15 @@ type PolicyPayload struct {
 }
 
 type PolicyData struct {
-	Type       string         `json:"type"`
-	Attributes PolicyAttrs    `json:"attributes"`
+	Type       string      `json:"type"`
+	Attributes PolicyAttrs `json:"attributes"`
 }
 
 type PolicyAttrs struct {
-	Name             string               `json:"name"`
-	ActionType       string               `json:"action_type"`
-	Action           PolicyAction         `json:"action"`
-	ConditionsGroup  ConditionsGroup      `json:"conditions_group"`
+	Name            string          `json:"name"`
+	ActionType      string          `json:"action_type"`
+	Action          PolicyAction    `json:"action"`
+	ConditionsGroup ConditionsGroup `json:"conditions_group"`
 }
 
 type PolicyAction struct {

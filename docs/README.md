@@ -1,473 +1,357 @@
-# snyk-ignore CLI - User Guide
+# snyk-ignore CLI — User Guide
 
-A simple command-line tool to bulk ignore Snyk Code vulnerabilities (SAST findings) without using the web UI.
+Bulk-create Snyk Code (SAST) ignore policies via the REST API — without clicking through the web UI one finding at a time.
 
-## Table of Contents
+## Quick start
 
-1. [Installation](#installation)
-2. [Getting Your API Token](#getting-your-api-token)
-3. [Finding Your Organization UUID](#finding-your-organization-uuid)
-4. [Initial Setup](#initial-setup)
-5. [Finding Projects](#finding-projects)
-6. [Ignoring Low-Severity Vulnerabilities](#ignoring-low-severity-vulnerabilities)
-7. [Verification](#verification)
+```bash
+make build
+
+# 1. Save credentials (pick one)
+./bin/snyk-ignore config set --token YOUR_TOKEN --org-id YOUR_ORG_UUID   # per project / per org
+./bin/snyk-ignore config set --token YOUR_TOKEN                          # all-orgs only
+
+# 2. Find a Code project (per-project workflow)
+./bin/snyk-ignore find my-app-name
+
+# 3. Standard workflow: discover → preview → execute
+./bin/snyk-ignore scan --cwe "CWE-79" --title-contains "Cross-site"
+./bin/snyk-ignore ignore --all-projects --cwe "CWE-79" --title-contains "Cross-site" --dry-run
+./bin/snyk-ignore ignore --all-projects --cwe "CWE-79" --title-contains "Cross-site"
+```
+
+Use `./bin/snyk-ignore` below, or `make install` to put the binary on your PATH.
+
+---
+
+## Table of contents
+
+1. [How it works](#how-it-works)
+2. [Setup](#setup)
+3. [Commands](#commands)
+4. [Workflows by scope](#workflows-by-scope)
+5. [Filter reference](#filter-reference)
+6. [Common options](#common-options)
+7. [Verify and undo](#verify-and-undo)
 8. [Troubleshooting](#troubleshooting)
+9. [FAQ](#faq)
 
 ---
 
-## Installation
+## How it works
 
-### Step 1: Get the Binary
+| Step | Command | Creates policies? |
+|---|---|---|
+| Discover matches | `scan` | No — read-only |
+| Preview policies | `ignore --dry-run` | No |
+| Create policies | `ignore` | Yes — one policy per finding |
+| Undo | `reverse --delete` | Deletes policies |
 
-The CLI tool is available in `./bin/snyk-ignore`. You can use it directly or copy it to a location in your system PATH.
+Every ignore targets **Snyk Code (`sast`) findings** only. Open Source and Container projects are ignored by the tool even if visible in `find --all-types`.
 
-**On macOS/Linux:**
-```bash
-# Make it executable (if needed)
-chmod +x ./bin/snyk-ignore
+**Pick your scope:**
 
-# Optional: Copy to PATH for easy access
-cp ./bin/snyk-ignore /usr/local/bin/
-```
+| Scope | Flags | Needs `--org-id`? |
+|---|---|---|
+| One project | `--project <ID>` | Yes |
+| Whole org | `--all-projects` | Yes |
+| Many orgs | `--all-orgs` | No — unset `SNYK_ORG_ID` / use token-only config |
 
-**On Windows:**
-Just use `.\bin\snyk-ignore.exe` or copy it to a folder in your PATH.
-
-### Step 2: Verify Installation
-
-```bash
-./bin/snyk-ignore --version
-```
-
-Expected output: `snyk-ignore version 0.1.0`
+Org-wide and all-orgs runs **require** a finding filter: `--cwe`, `--cve`, `--rule-id`, or `--title-contains`.
 
 ---
 
-## Getting Your API Token
+## Setup
 
-### Step 1: Go to Snyk Account Settings
+### API token
 
-1. Log in to [Snyk](https://app.snyk.io)
-2. Click on your avatar in the bottom left
-3. Select **Account Settings**
+1. Log in to [Snyk](https://app.snyk.io) → avatar → **Account Settings** → **API Token**
+2. Generate a token (e.g. `CLI - snyk-ignore`) and copy it
 
-### Step 2: Generate an API Token
+Keep the token private. Do not commit it to git.
 
-1. Click on **API Token** in the left sidebar
-2. Click **Generate a new token**
-3. Give it a name like `"CLI - snyk-ignore"`
-4. **Copy and save this token** - you'll need it next
-
-> ⚠️ **Important:** This token gives access to your Snyk account. Keep it private and don't commit it to git!
-
----
-
-## Finding Your Organization UUID
-
-Your organization has both a **slug** (what you see in the URL) and a **UUID** (what the API needs). We need to get the UUID.
-
-### Option 1: Use the CLI (Easiest)
+### Organization UUID (per project / per org)
 
 ```bash
-# First, set a temporary token to list your orgs
 ./bin/snyk-ignore orgs --token YOUR_API_TOKEN
 ```
 
-This will show you all organizations you have access to, including their UUIDs:
+Copy the **ORG_UUID** for your target org (not the slug from the URL).
 
-```
-ORG_NAME              ORG_SLUG                      ORG_UUID
-mycompany             demo-ZVGSHRTPt9vnQqWhMTc2i7  b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
-another-org           prod-abc123                   a1b2c3d4-e5f6-7890-abcd-ef1234567890
-```
+### Save config
 
-**Copy the ORG_UUID** for the organization you want to use.
-
-### Option 2: Find it in the Web UI
-
-1. Go to https://app.snyk.io/org/YOUR_ORG/settings
-2. The URL shows: `https://app.snyk.io/org/demo-ZVGSHRTPt9vnQqWhMTc2i7/settings`
-3. Look at Organization > General
-4. You might see the UUID listed there (if not, use Option 1)
-
----
-
-## Initial Setup
-
-Now that you have your API token and organization UUID, set up the CLI to remember them.
-
-### Step 1: Save Your Configuration
+Config file: `~/.snyk-ignore/config.yaml`
 
 ```bash
-./bin/snyk-ignore config set \
-  --token YOUR_API_TOKEN \
-  --org-id YOUR_ORG_UUID
-```
+# Per project or per org
+./bin/snyk-ignore config set --token YOUR_TOKEN --org-id YOUR_ORG_UUID
 
-**Example:**
-```bash
-./bin/snyk-ignore config set \
-  --token d1234567-1234-1234-1234-123456789012 \
-  --org-id b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
-```
+# All-orgs workflows (token only)
+./bin/snyk-ignore config set --token YOUR_TOKEN
 
-This saves your credentials to `~/.snyk-ignore/config.yaml` (hidden file in your home directory).
-
-### Step 2: Verify Configuration
-
-```bash
 ./bin/snyk-ignore config show
+./bin/snyk-ignore config clear    # remove saved config
 ```
 
-Expected output:
-```
-Config: /Users/yourname/.snyk-ignore/config.yaml
+**Priority:** command-line flags → environment variables → config file.
 
-  Token: d123...9012
-  Org ID: b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
+```bash
+export SNYK_TOKEN="..."
+export SNYK_ORG_ID="..."    # omit for --all-orgs
 ```
-
-✅ Your token and org ID are now saved! You won't need to enter them again.
 
 ---
 
-## Finding Projects
+## Commands
 
-Now let's find the Snyk Code project you want to ignore vulnerabilities in.
-
-### Step 1: List All Projects
+| Command | Purpose |
+|---|---|
+| `orgs` | List orgs your token can access (token only — no org ID needed) |
+| `find [name]` | List Code projects in one org; shows `PROJECT_ID` |
+| `find --all-types` | List all project types (ignores still only apply to `sast`) |
+| `scan` | Search for findings by CWE/CVE/rule/title — never writes |
+| `ignore` | Create ignore policies (use `--dry-run` first) |
+| `reverse` | List/delete policies created by this tool |
+| `config set/show/clear` | Manage saved credentials |
 
 ```bash
-./bin/snyk-ignore find
+./bin/snyk-ignore <command> --help
+./bin/snyk-ignore scan --help
+./bin/snyk-ignore ignore --help
 ```
 
-This shows all SAST (Snyk Code) projects in your organization:
+---
 
-```
-PROJECT_ID                            PROJECT_NAME                     TYPE   ORG_ID
-------------------------------------  -----------------------------  -----  ------------------------------------
-1b7f30ce-184e-455a-971a-20359f21c3cb  sam1el/fraud-detection-agent    sast   b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
-ce1cdf01-95ac-49ee-a117-ba2b26b7f689  sam1el/juice-shop               sast   b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
-e7b168be-05d5-4e86-9cf2-b99e52570666  automata-devops-io/repo-testing sast   b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
-```
+## Workflows by scope
 
-### Step 2: Filter Projects (Optional)
+### 1. Per project
 
-If you have many projects, filter by name:
+When you know the project ID and want to ignore findings in that project only.
 
 ```bash
 ./bin/snyk-ignore find juice-shop
-```
+# Copy PROJECT_ID from output
 
-Output:
-```
-Fetching Snyk Code projects (filtering: juice-shop)...
-PROJECT_ID                            PROJECT_NAME          TYPE   ORG_ID
-------------------------------------  --------------------  -----  ------------------------------------
-ce1cdf01-95ac-49ee-a117-ba2b26b7f689  sam1el/juice-shop     sast   b0ebfab5-bf23-46c4-a7e6-7761b4bb4330
+# By severity
+./bin/snyk-ignore ignore --project PROJECT_ID --severity low --dry-run
+./bin/snyk-ignore ignore --project PROJECT_ID --severity low
 
-✓ Found 1 Code project(s)
-```
-
-### Step 3: Copy the PROJECT_ID
-
-For the next steps, you'll need the **PROJECT_ID**. In this example:
-```
-ce1cdf01-95ac-49ee-a117-ba2b26b7f689
-```
-
----
-
-## Ignoring Low-Severity Vulnerabilities
-
-Now we'll create ignore policies for all low-severity vulnerabilities in your project.
-
-### Step 1: Preview What Will Happen (Recommended)
-
-Always do a dry-run first to see what will be ignored:
-
-```bash
+# By CWE (combine filters to narrow scope)
 ./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low \
+  --project PROJECT_ID \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical \
+  --type wont-fix \
+  --reason "Accepted risk: DB→JSP XSS — trusted by design" \
   --dry-run
 ```
 
-This shows a preview of the policies that would be created **without actually creating them**.
-
-Output example:
-```
-Collecting low severity Snyk Code issues...
-Found 5 issue(s)
-
-[DRY RUN] Would create the following policies:
-  [1] key_asset: 1662bb2e-4c43-4f2c-83e1-ee5e0e009999
-       severity: low | title: Insecure hash function used
-  [2] key_asset: 2773cc3f-5d54-4e9d-94f2-ff6f1f110aaa
-       severity: low | title: SQL Injection
-  ...
-```
-
-✅ Review the output. Does it look right?
-
-### Step 2: Create the Ignore Policies
-
-Once you're happy with the preview, run it for real (remove `--dry-run`):
-
-```bash
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low
-```
-
-The CLI will:
-1. Fetch all low-severity issues
-2. Create ignore policies for each one
-3. Show progress with a progress bar
-
-Output:
-```
-Collecting low severity Snyk Code issues...
-Found 5 issue(s)
-
-Creating ignore policies...
-100% |████████████████████████████| (5/5)
-
-=== Summary ===
-Total issues: 5
-Policies created: 5
-Policies failed: 0
-
-✓ Bulk ignore operation complete!
-
-View policies in Snyk Web UI:
-  Organization Settings > Ignores
-```
-
-✅ Done! All low-severity vulnerabilities in that project are now ignored.
+No scope filter required for single-project severity-only ignores.
 
 ---
 
-## Verification
+### 2. Per org (all Code projects in one organization)
 
-### Step 1: Check in Snyk Web UI
+When the same finding pattern spans multiple Code projects in one org (e.g. bulk XSS on a Java/JSP estate).
 
-1. Go to https://app.snyk.io
-2. Navigate to **Organization Settings > Ignores**
-3. You should see policies like:
-   - `Ignore-1662bb2e` (automatically created)
-   - `Ignore-2773cc3f`
-   - etc.
+Requires `--org-id` in config or environment.
 
-Each policy corresponds to one ignored vulnerability.
+```bash
+# Step 1: Discover — see match counts per project
+./bin/snyk-ignore scan \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical
 
-### Step 2: Check the Project
+# Optional: limit by project name
+./bin/snyk-ignore scan \
+  --cwe "CWE-79" \
+  --project-filter "jsp" \
+  --severity low,medium,high,critical
 
-1. Go to your project (e.g., juice-shop)
-2. The low-severity vulnerabilities should now be marked as "ignored"
-3. They won't count toward your vulnerability total anymore
+# Step 2: Preview policies
+./bin/snyk-ignore ignore \
+  --all-projects \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical \
+  --type wont-fix \
+  --reason "Accepted risk: DB→JSP XSS (CWE-79) — trusted by design" \
+  --dry-run
+
+# Step 3: Execute (same flags, drop --dry-run)
+./bin/snyk-ignore ignore \
+  --all-projects \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical \
+  --type wont-fix \
+  --reason "Accepted risk: DB→JSP XSS (CWE-79) — trusted by design" \
+  --concurrency 3
+```
+
+Add `--verbose` to `scan` or `ignore --dry-run` to list every matching finding.
 
 ---
 
-## Common Tasks
+### 3. All orgs
 
-### Ignore Multiple Severity Levels
+When your token sees many orgs and you need the same CWE/CVE suppressed across a **group** or filtered set.
 
-```bash
-# Ignore low AND medium severity
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low,medium
-
-# Ignore low, medium, AND high severity
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low,medium,high
-```
-
-### Mark Issues as "Not Vulnerable" (False Positive)
-
-If you know an issue is a false positive:
+**Important:** `--all-orgs` conflicts with `--org-id` / `SNYK_ORG_ID`. Use token-only config:
 
 ```bash
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low \
-  --type not-vulnerable \
-  --reason "False positive - not applicable to our code"
+./bin/snyk-ignore config clear
+./bin/snyk-ignore config set --token YOUR_TOKEN
+# or: unset SNYK_ORG_ID
 ```
-
-### Custom Ignore Reason
-
-By default, the CLI auto-generates a reason based on severity (e.g., "Low severity - auto-ignored via API bulk operation"). You can override this with a custom message:
 
 ```bash
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low \
-  --reason "Legacy code - fixing not planned"
+# See what your token can access
+./bin/snyk-ignore orgs
+
+# Recommended: scope to a Snyk group
+./bin/snyk-ignore scan --all-orgs \
+  --group-id YOUR_GROUP_UUID \
+  --exclude-orgs "snyk-labs,demo,broker" \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical
+
+# Preview → execute (same flags on ignore)
+./bin/snyk-ignore ignore --all-orgs \
+  --group-id YOUR_GROUP_UUID \
+  --exclude-orgs "snyk-labs,demo,broker" \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical \
+  --type wont-fix \
+  --reason "Accepted risk" \
+  --dry-run
+
+./bin/snyk-ignore ignore --all-orgs \
+  --group-id YOUR_GROUP_UUID \
+  --exclude-orgs "snyk-labs,demo,broker" \
+  --cwe "CWE-79" \
+  --title-contains "Cross-site" \
+  --severity low,medium,high,critical \
+  --type wont-fix \
+  --reason "Accepted risk" \
+  --concurrency 3
 ```
 
-This custom reason will appear in the Snyk Web UI under Organization Settings > Ignores, helping your team understand why each vulnerability was ignored.
+Group UUID: **Group Settings** in the Snyk UI, or ask your Snyk admin.
 
-### Use Environment Variables Instead of Config File
+Policies are created **per org** — verify in each org's **Organization Settings → Ignores**.
 
-You can also set credentials as environment variables (useful for CI/CD):
+---
+
+## Filter reference
+
+| Flag | Applies to | Notes |
+|---|---|---|
+| `--severity` | Finding | `low`, `medium`, `high`, `critical` — comma-separated |
+| `--cwe` | Finding | Matches `classes` / `problems` / title / key |
+| `--cve` | Finding | Same as `--cwe` for CVE identifiers |
+| `--rule-id` | Finding | Substring match on issue `key` |
+| `--title-contains` | Finding | Substring match on title (case-insensitive) |
+| `--project-filter` | Project | Name substring; use with `--all-projects` / `--all-orgs` |
+| `--org-filter` | Org | Name/slug substring; use with `--all-orgs` |
+| `--group-id` | Org | Only orgs in this Snyk group UUID |
+| `--exclude-orgs` | Org | Comma-separated name/slug/UUID patterns to skip |
+
+**Tips:**
+
+- Combine `--cwe` and `--title-contains` to avoid overly broad CWE matches (e.g. `CWE-79` can substring-match `CWE-798`).
+- Use `--severity low,medium,high,critical` when unsure which severity your findings use.
+- `scan` accepts `--dry-run` for compatibility; scan is always read-only.
+
+---
+
+## Common options
+
+### Ignore type (`--type`)
+
+| Value | When to use |
+|---|---|
+| `wont-fix` (default) | Valid finding, accepted risk |
+| `not-vulnerable` | False positive |
+| `temporary-ignore` | Short-term suppression |
+
+For accepted architectural risk (e.g. trusted DB→JSP flows), use **`wont-fix`**, not `not-vulnerable`.
+
+### Custom reason (`--reason`)
+
+Auto-generated if omitted. Override for audit trail in the Snyk UI:
 
 ```bash
-export SNYK_TOKEN="d1234567-1234-1234-1234-123456789012"
-export SNYK_ORG_ID="b0ebfab5-bf23-46c4-a7e6-7761b4bb4330"
-
-./bin/snyk-ignore find
-./bin/snyk-ignore ignore --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 --severity low
+--reason "Accepted risk: DB→JSP XSS (CWE-79) — trusted by design"
 ```
 
-### Faster Processing (If Experiencing Rate Limits)
+### Concurrency (`--concurrency`)
 
-The CLI uses 5 concurrent workers by default. Adjust if needed:
+Default `5`. Lower if you hit rate limits:
 
 ```bash
-# Slower but safer (avoid rate limits)
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low \
-  --concurrency 2
-
-# Faster
-./bin/snyk-ignore ignore \
-  --project ce1cdf01-95ac-49ee-a117-ba2b26b7f689 \
-  --severity low \
-  --concurrency 10
+--concurrency 2
 ```
+
+### Debug
+
+```bash
+./bin/snyk-ignore scan --cwe "CWE-79" --debug
+./bin/snyk-ignore ignore --all-projects --cwe "CWE-79" --dry-run --debug
+```
+
+---
+
+## Verify and undo
+
+### Verify
+
+1. Snyk UI → **Organization Settings → Ignores** — policies named `Ignore-<hash>`
+2. Open the project — findings should show as ignored
+
+### Undo (single org)
+
+```bash
+./bin/snyk-ignore reverse              # preview
+./bin/snyk-ignore reverse --delete     # delete Ignore-* policies
+```
+
+For all-orgs runs, run `reverse` separately in each org (requires that org's `--org-id`).
 
 ---
 
 ## Troubleshooting
 
-### "Error: failed to list projects: API error (403)"
-
-**Problem:** Your API token doesn't have permission to access the organization.
-
-**Solutions:**
-1. Verify the organization UUID is correct: `./bin/snyk-ignore orgs --token YOUR_TOKEN`
-2. Generate a new API token with full permissions (Settings > API Token > Generate)
-3. Make sure your Snyk account has access to that organization
-
-### "No Code projects found"
-
-**Problem:** No SAST projects found in the organization.
-
-**Solutions:**
-1. Make sure you're looking in the right organization (check with `find`)
-2. Ensure your projects have been scanned with Snyk Code (enable in project settings)
-3. Try filtering: `./bin/snyk-ignore find your-project-name`
-
-### "Found 32 project(s) but none are Code type"
-
-**Problem:** The organization has projects, but none are SAST/Code type.
-
-**Solutions:**
-1. Make sure you're looking at Code projects, not Open Source or Container projects
-2. Go to the project in the Web UI and check the project type
-3. Enable Snyk Code scanning if it's not already enabled
-
-### "Policies failed: N"
-
-**Problem:** Some policies failed to create.
-
-**Solutions:**
-1. Run the command again - it may be a temporary issue
-2. Reduce concurrency: `--concurrency 2` (avoids rate limits)
-3. Check that your organization has "Code Consistent Ignores" enabled (Settings > General)
-
-### Config File Not Loading
-
-**Problem:** You set a config but it's not being used.
-
-**Solutions:**
-1. Verify the config file exists: `~/.snyk-ignore/config.yaml`
-2. Check it contains the right values: `./bin/snyk-ignore config show`
-3. Ensure file is readable: `cat ~/.snyk-ignore/config.yaml`
-4. Try setting it again: `./bin/snyk-ignore config set --token YOUR_TOKEN --org-id YOUR_ORG_ID`
-
----
-
-## Getting Help
-
-### View All Commands
-
-```bash
-./bin/snyk-ignore --help
-```
-
-### Get Help for a Specific Command
-
-```bash
-./bin/snyk-ignore find --help
-./bin/snyk-ignore ignore --help
-./bin/snyk-ignore config --help
-```
-
-### Enable Debug Output
-
-Get detailed information about what the CLI is doing:
-
-```bash
-./bin/snyk-ignore find --debug
-./bin/snyk-ignore ignore --project YOUR_ID --severity low --debug
-```
-
----
-
-## Summary
-
-**One-time setup (5 minutes):**
-```bash
-./bin/snyk-ignore config set --token YOUR_TOKEN --org-id YOUR_ORG_UUID
-```
-
-**Find projects:**
-```bash
-./bin/snyk-ignore find
-```
-
-**Ignore low-severity vulnerabilities:**
-```bash
-./bin/snyk-ignore ignore --project YOUR_PROJECT_ID --severity low --dry-run
-./bin/snyk-ignore ignore --project YOUR_PROJECT_ID --severity low
-```
-
-**Verify in Web UI:**
-1. Go to Organization Settings > Ignores
-2. See your created policies
-3. Check the project - low-severity issues should now be ignored
-
-Done! 🎉
+| Problem | Fix |
+|---|---|
+| `unknown flag` | Check spelling (`--title-contains`, not `--tile-contains`) |
+| `--org-id and --all-orgs cannot be used together` | `config clear` or `unset SNYK_ORG_ID` before `--all-orgs` |
+| API 403 | Verify org UUID with `orgs`; check token permissions |
+| No Code projects / wrong type | Use `find`; enable Snyk Code on the repo; try `find --all-types` |
+| No matching findings | Widen `--severity`; add `--debug`; confirm CWE with `--verbose` on scan |
+| Too many orgs on token | Use `--group-id` and/or `--exclude-orgs` |
+| Policies failed | Lower `--concurrency`; enable **Code Consistent Ignores** in org settings |
+| Stale binary / unknown flags | Run `make build`; use `./bin/snyk-ignore` not an old copy in repo root |
 
 ---
 
 ## FAQ
 
-**Q: Does this modify my code?**
-A: No. This only creates ignore policies in Snyk, telling it to ignore certain vulnerabilities.
+**Does this modify source code?**
+No. It only creates ignore policies in Snyk.
 
-**Q: Can I undo ignores?**
-A: Yes. Go to Organization Settings > Ignores in the Web UI and delete the policies.
+**One policy per finding?**
+Yes. ~2,000 findings → ~2,000 policies. There is no single "ignore all XSS" policy via this API.
 
-**Q: What's the difference between "wont-fix" and "not-vulnerable"?**
-- **wont-fix**: You acknowledge the vulnerability but won't fix it now
-- **not-vulnerable**: It's a false positive and doesn't apply to your code
+**New findings after a rescan?**
+Not auto-ignored. Re-run `scan` and `ignore` for new instances.
 
-**Q: Can I ignore specific files or functions?**
-A: Not with this CLI. It ignores by vulnerability ID. For more granular control, use the Snyk Web UI.
+**Can I ignore specific files?**
+No — ignores are per finding (`key_asset`), not per file path.
 
-**Q: How often do I need to run this?**
-A: Once per project. New vulnerabilities that appear later won't be automatically ignored - you'll need to run it again.
-
-**Q: Can I use this in CI/CD?**
-A: Yes! Use environment variables instead of a config file:
-```bash
-export SNYK_TOKEN="..."
-export SNYK_ORG_ID="..."
-./bin/snyk-ignore ignore --project YOUR_ID --severity low
-```
+**CI/CD?**
+Use env vars (`SNYK_TOKEN`, `SNYK_ORG_ID`) instead of a config file.

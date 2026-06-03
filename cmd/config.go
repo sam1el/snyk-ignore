@@ -26,9 +26,6 @@ Environment variables always take precedence over config file.`,
 		if token == "" {
 			return fmt.Errorf("--token is required")
 		}
-		if orgID == "" {
-			return fmt.Errorf("--org-id is required")
-		}
 
 		cfg := &config.Config{
 			Token:   token,
@@ -43,7 +40,11 @@ Environment variables always take precedence over config file.`,
 		configPath := config.GetConfigPath()
 		color.Green("✓ Config saved to %s", configPath)
 		fmt.Println()
-		fmt.Println("Future commands will automatically use these credentials.")
+		if cfg.OrgID != "" {
+			fmt.Println("Future commands will automatically use these credentials.")
+		} else {
+			fmt.Println("Token saved. Add --org-id when running per-org commands, or use --all-orgs without an org ID.")
+		}
 		fmt.Println("To override: set SNYK_TOKEN and SNYK_ORG_ID environment variables.")
 
 		return nil
@@ -72,7 +73,11 @@ var configShowCmd = &cobra.Command{
 		color.Green("Config: %s", configPath)
 		fmt.Println()
 		fmt.Printf("  Token: %s\n", maskSecret(cfg.Token))
-		fmt.Printf("  Org ID: %s\n", cfg.OrgID)
+		if cfg.OrgID != "" {
+			fmt.Printf("  Org ID: %s\n", cfg.OrgID)
+		} else {
+			fmt.Println("  Org ID: (not set)")
+		}
 		if cfg.APIBase != "" {
 			fmt.Printf("  API Base: %s\n", cfg.APIBase)
 		}
@@ -105,7 +110,7 @@ func init() {
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configClearCmd)
 
-	configSetCmd.Flags().StringVar(&token, "token", "", "Snyk API token")
-	configSetCmd.Flags().StringVar(&orgID, "org-id", "", "Snyk Organization ID")
+	configSetCmd.Flags().StringVar(&token, "token", "", "Snyk API token (required)")
+	configSetCmd.Flags().StringVar(&orgID, "org-id", "", "Snyk Organization ID (optional; omit for --all-orgs workflows)")
 	configSetCmd.Flags().StringVar(&apiBase, "api-base", "", "Snyk API base URL (optional)")
 }

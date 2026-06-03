@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	Token  string
-	OrgID  string
+	Token   string
+	OrgID   string
 	APIBase string
 }
 

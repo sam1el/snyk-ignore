@@ -11,18 +11,22 @@ import (
 	"github.com/sam1el/snyk-ignore/internal/api"
 )
 
+var findFilter string
+var findAllTypes bool
+
 var findCmd = &cobra.Command{
 	Use:   "find [filter]",
 	Short: "Find Snyk Code projects",
-	Long: `List all Snyk Code projects in the organization.
+	Long: `List Snyk Code projects in the organization.
 
+Use --all-types to list every project type (Open Source, Container, etc.).
 Optionally filter by project name.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := validateFlags(); err != nil {
+		if err := validateFlags(true); err != nil {
 			return err
 		}
 
-		filter := ""
+		filter := findFilter
 		if len(args) > 0 {
 			filter = args[0]
 		}
@@ -33,11 +37,12 @@ Optionally filter by project name.`,
 		}
 
 		if filter != "" {
-			color.Cyan("Fetching Snyk Code projects (filtering: %s)...", filter)
+			color.Cyan("Fetching projects (filtering: %s)...", filter)
 		} else {
-			color.Cyan("Fetching Snyk Code projects...")
+			color.Cyan("Fetching projects...")
 		}
-		projects, err := client.ListCodeProjects(filter)
+
+		allMatching, err := client.ListProjects(filter)
 		if err != nil {
 			if debug {
 				color.Red("Debug - Token: %s", maskSecret(token))
@@ -47,55 +52,66 @@ Optionally filter by project name.`,
 			return fmt.Errorf("failed to list projects: %w", err)
 		}
 
-		if len(projects) == 0 {
-			if filter != "" {
-				color.Yellow("No Code projects found matching: %s", filter)
-			} else {
-				color.Yellow("No Code projects found")
-			}
-			return nil
-		}
-
-		// Check if we got non-code projects (debug info)
-		codeCount := 0
-		for _, proj := range projects {
-			if proj.Attrs.Type == "sast" {
-				codeCount++
-			}
-		}
-
-		if codeCount == 0 && len(projects) > 0 {
-			color.Yellow("Found %d project(s) but none are SAST/Code type:", len(projects))
-			for i, proj := range projects {
-				if i >= 5 { // Show first 5
-					color.Yellow("  ... and %d more", len(projects)-5)
-					break
+		if findAllTypes {
+			if len(allMatching) == 0 {
+				if filter != "" {
+					color.Yellow("No projects found matching: %s", filter)
+				} else {
+					color.Yellow("No projects found")
 				}
-				color.Yellow("  • %s (type: %s)", proj.Attrs.Name, proj.Attrs.Type)
+				return nil
 			}
+			printProjectTable(cmd, allMatching)
+			fmt.Println()
+			color.Green("✓ Found %d project(s)", len(allMatching))
+			fmt.Println("\nSnyk Code ignores apply to projects with TYPE=sast.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "PROJECT_ID\tPROJECT_NAME\tTYPE\tORG_ID")
-		fmt.Fprintln(w, strings.Repeat("-", 36) + "\t" + strings.Repeat("-", 50) + "\t" + strings.Repeat("-", 12) + "\t" + strings.Repeat("-", 36))
+		codeProjects := api.FilterProjectsByType(allMatching, "sast")
 
-		for _, proj := range projects {
-			name := proj.Attrs.Name
-			if len(name) > 48 {
-				name = name[:48]
+		if len(codeProjects) == 0 {
+			if filter != "" && len(allMatching) == 0 {
+				color.Yellow("No projects found matching: %s", filter)
+				return nil
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", proj.ID, name, proj.Attrs.Type, proj.Rels.Organization.Data.ID)
+			if filter != "" && len(allMatching) > 0 {
+				fmt.Println()
+				color.Yellow("No Snyk Code (SAST) projects found matching: %s", filter)
+				color.Yellow("Found %d matching project(s) of other types:", len(allMatching))
+				printProjectTable(cmd, allMatching)
+				fmt.Println()
+				color.Yellow("Enable Snyk Code scanning on the repository, then re-run find.")
+				return nil
+			}
+			color.Yellow("No Code projects found")
+			return nil
 		}
-		w.Flush()
+
+		printProjectTable(cmd, codeProjects)
 
 		fmt.Println()
-		color.Green("✓ Found %d Code project(s)", codeCount)
+		color.Green("✓ Found %d Code project(s)", len(codeProjects))
 		fmt.Println("\nTo ignore findings, use:")
 		color.Cyan("  snyk-ignore ignore --project <PROJECT_ID> --severity low")
 
 		return nil
 	},
+}
+
+func printProjectTable(cmd *cobra.Command, projects []api.Project) {
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "PROJECT_ID\tPROJECT_NAME\tTYPE\tORG_ID")
+	fmt.Fprintln(w, strings.Repeat("-", 36)+"\t"+strings.Repeat("-", 50)+"\t"+strings.Repeat("-", 12)+"\t"+strings.Repeat("-", 36))
+
+	for _, proj := range projects {
+		name := proj.Attrs.Name
+		if len(name) > 48 {
+			name = name[:48]
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", proj.ID, name, proj.Attrs.Type, proj.Rels.Organization.Data.ID)
+	}
+	w.Flush()
 }
 
 var findOrgsCmd = &cobra.Command{
@@ -105,11 +121,11 @@ var findOrgsCmd = &cobra.Command{
 
 Shows both the slug (used in Web UI) and UUID (used in API).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := validateFlags(); err != nil {
+		if err := validateFlags(false); err != nil {
 			return err
 		}
 
-		client := api.NewClient(token, orgID)
+		client := api.NewClient(token, "")
 		if apiBase != "" {
 			client.SetBaseURL(apiBase)
 		}
@@ -127,7 +143,7 @@ Shows both the slug (used in Web UI) and UUID (used in API).`,
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "ORG_NAME\tORG_SLUG\tORG_UUID")
-		fmt.Fprintln(w, strings.Repeat("-", 30) + "\t" + strings.Repeat("-", 30) + "\t" + strings.Repeat("-", 36))
+		fmt.Fprintln(w, strings.Repeat("-", 30)+"\t"+strings.Repeat("-", 30)+"\t"+strings.Repeat("-", 36))
 
 		for _, org := range orgs {
 			fmt.Fprintf(w, "%s\t%s\t%s\n", org.Attrs.Name, org.Attrs.Slug, org.ID)
@@ -145,6 +161,7 @@ Shows both the slug (used in Web UI) and UUID (used in API).`,
 }
 
 func init() {
-	findCmd.Flags().StringP("filter", "f", "", "Filter projects by name (substring match)")
+	findCmd.Flags().StringVarP(&findFilter, "filter", "f", "", "Filter projects by name (substring match)")
+	findCmd.Flags().BoolVar(&findAllTypes, "all-types", false, "List all project types, not just Snyk Code (sast)")
 	rootCmd.AddCommand(findOrgsCmd)
 }

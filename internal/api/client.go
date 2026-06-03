@@ -57,18 +57,18 @@ func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
 func (c *Client) doWithContext(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
 	// Build URL properly with query parameters
 	baseURL := fmt.Sprintf("%s%s", c.baseURL, path)
-	
+
 	// Parse the URL to handle existing query parameters
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Add version parameter
 	q := u.Query()
 	q.Set("version", APIVersion)
 	u.RawQuery = q.Encode()
-	
+
 	finalURL := u.String()
 
 	var reqBody io.Reader
@@ -113,7 +113,7 @@ func (c *Client) doWithContext(ctx context.Context, method, path string, body in
 
 func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	cfg := ratelimit.DefaultRetryConfig()
-	
+
 	var lastErr error
 	var lastResp *http.Response
 	var lastBody []byte
@@ -232,11 +232,11 @@ func (c *Client) parseURLWithVersion(baseURL string) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	q := u.Query()
 	q.Set("version", APIVersion)
 	u.RawQuery = q.Encode()
-	
+
 	return u, nil
 }
 
