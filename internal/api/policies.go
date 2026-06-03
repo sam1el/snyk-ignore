@@ -53,8 +53,10 @@ func (c *Client) ListPolicies() ([]Policy, error) {
 			break
 		}
 
-		// For now, only fetch first page (can extend for pagination)
-		break
+		cursor = extractCursor(resp.Links.Next)
+		if cursor == "" {
+			break
+		}
 	}
 
 	return policies, nil
